@@ -1128,22 +1128,24 @@ Going back and forth from one definition to the other gives us the equivalences
 
 \section{Formal implementation} \label{sec:formal-implementation}
 
-We have a formal implementation in \Agda, using the options \texttt{-{}-with-K} for the uniqueness of identity proofs, \texttt{-{}-exact-split} to ensure that all function clauses are definitional, and \texttt{-{}-rewriting} with \texttt{-{}-local-confluence-check} for implementing definitions by overlapping patterns.
+We have a formal implementation in \Agda, using the options \texttt{-{}-with-K} for the uniqueness of identity proofs, \texttt{-{}-exact-split} to ensure that all function clauses are definitional, and \texttt{-{}-rewriting} with \texttt{-{}-local-confluence-check} \cite{Cockx2020,Cockx2021} to implement definitions by overlapping patterns.
 Quotient inductive types are simulated by postulating equations to introduce equality constructors~\cite{Licata2011}, as \textsc{Cubical Agda} does not support user-defined rewrite rules.
 
 \subparagraph*{Implementing overlapping patterns via rewrite rules}
 %The mechanism of defining a function by overlapping patterns is only implemented in an outdated experimental fork of \Agda.
-To emulate a function by overlapping patterns in \Agda, we declare each function clause a rewrite rule \cite{Cockx2020,Cockx2021} and another rewrite to identify the clause with the reflexivity proof and also turn on the option \texttt{-{}-local-confluence-check} to check local confluence.
-For example, type substitution $[\blank]_{\Ty}$ up to the first clause $[\idS]_{\Ty}\,A \reduce A$ is defined as
+To emulate a function by overlapping patterns, we declare each function clause a rewrite and another rewrite to identify the clause with the reflexivity proof.
+E.g.,\ $[\blank]_{\Ty}$ up to the first clause $[\idS]_{\Ty}\,A \reduce A$ is defined as
 \begin{lstlisting}
 postulate
   [_]_      : Sub Γ Δ → Ty Δ → Ty Γ
-  [id]      : [ idS ] A ≡ A
-  {-# REWRITE [id] #-}
+  [id]      : [ idS ]    A ≡ A
+  {-# REWRITE [id]      #-}
   [id]≡refl : [id] {A = A} ≡ refl
   {-# REWRITE [id]=refl #-}
 \end{lstlisting}
 where \lstinline|[id]≡refl| is used to ensure that \lstinline|[id]| need not be referred.
+We also turn on the option \texttt{-{}-local-confluence-check} to check local confluence.
+
 
 Defining by overlapping patterns is indeed one of the use cases of user-defined rewrite rules discussed by Cockx~\cite{Cockx2020}. 
 The caveat, though, is that the termination checker is not imposed, so we have to check the termination informally.
@@ -1289,14 +1291,15 @@ We give the QIIR definition for type theory with a universe of small types, $\Pi
 \paragraph*{Extensional identity types}
 
 \begin{alignat*}{5}
-  \idtype[\blank]{\blank}{\blank} & : \implicit{\Gamma} && (a : \Tm\;\Gamma\;\UU) (t : \Tm\;\Gamma\;(\El\,a)(u : \Tm\;\Gamma\;(\El\,a)) \to \Ty\;\Gamma \\
+  \mathsf{Id} & : \implicit{\Gamma} && (a : \Tm\;\Gamma\;\UU) (t : \Tm\;\Gamma\;(\El\,a)(u : \Tm\;\Gamma\;(\El\,a)) \to \Ty\;\Gamma \\
   \nameless & : && [ \sigma ]_{\Ty}\, \idtype[a]{t}{u} \reduce \idtype[{[\sigma]_{\Tm}\,a}]{[\sigma]_{\Tm}\,t}{[\sigma]_{\Tm}\,u} \\
-  \mathsf{refl} & : \implicit{\Gamma, a, t}\;&&\Tm\;\Gamma\;(\idtype[a]{t}{t}) \\
+  \mathsf{refl} & : \implicit{\Gamma, a, t}\;&&\Tm\;\Gamma\;(\mathsf{Id}\;a\;t\;t) \\
   \mathsf{reflect} & : \implicit{\Gamma, a, t, u}\;&& \Tm\;\Gamma\;(\idtype[a]{t}{u}) \to t =^{\Tm\;\Gamma\;(\El\,a)} u
 \end{alignat*}
 
 \paragraph*{Elimination principle}
 
+\subparagraph*{Motives}
 \begin{align*}
   \Ctx^M & : \Ctx \to \Set &
   \Sub^M & : \implicit{\Gamma, \Delta}\,\Ctx^M\;\Gamma \to \Ctx^M\;\Delta \to \Sub\;\Gamma\;\Delta \to \Set \\
@@ -1304,29 +1307,68 @@ We give the QIIR definition for type theory with a universe of small types, $\Pi
   \Tm^M  & : \implicit{\Gamma, A}\; (\Gamma^M : \Ctx^M\;\Gamma) \to \Ty^M\;\Gamma^M\;A \to \Tm\;\Gamma\;A \to \Set
 \end{align*}
 
+\subparagraph*{Methods}
+Note that implicitly quantified variables which would be otherwise declared inside $\implicit{\dots}$ are omitted below.
+Each variable $\mathsf{c}^M$ with the superscript $(\blank)^M$ is always indexed by $\mathsf{c}$ in addition to other indices.
+
 \begin{alignat*}{10}
-  \emptyctx_{\Ctx}^M     & :                    && \Ctx^M\;\emptyctx \\
-  \blank,_{\Ctx}^M\blank & : \implicit{\dots}\; && (\Gamma^M : \Ctx^M\;\Gamma) \to \Ty^M\;\Gamma^M\;A \to \Ctx^M\;(\Gamma, A) \\
-  [\blank]_{\Ty}^M\blank & : \implicit{\dots}\; && \Sub^M\;\Gamma^M\;\Delta^M\;\sigma \to \Ty^M\;\Delta^M\;A \to \Ty^M\;\Gamma^M\;([\sigma]_{\Ty}\,A) \\
-  \emptysub_{\Sub}^M     & : \implicit{\dots}   && \Sub^M\;\Gamma^M\;\emptyctx_{\Ctx}^M\;\cdot \\
-  \blank,_{\Sub}^M\blank & : \implicit{\dots}   && (\sigma^M : \Sub^M\;\Gamma^M\;\Delta^M\;\sigma) \to \Tm^M\;\Gamma^M\;([\sigma^M]^M_{\Ty}\,A^M)\;t \to \Sub^M\;\Gamma^M\;(\Delta^M ,^M_{\Ctx} A^M)\;(\sigma, t) \\
-  \idS^M          & : \implicit{\dots}\; && \Sub^M\;\Gamma^M\;\Gamma^M\;\idS \\
-  \blank;^M\blank & : \implicit{\dots}\; && (\sigma^M : \Sub^M\;\Gamma\;\Delta^M\;\sigma) \to (\tau^M : \Sub^M\;\Delta^M\;\Theta^M\;\tau) \to \Sub^M\;\Gamma^M\;\Delta^M\;(\sigma ; \tau) \\
-  \pi_1^M         & : \implicit{\dots}\; && \Sub^M\;\Gamma^M\;(\Delta^M ,_{\Ctx}^M A^M)\;\sigma \to \Sub^M\;\Gamma^M\;\Delta^M\;(\pi_1\sigma) \\
-  \pi_2^M         & : \implicit{\dots}\; && (\sigma^M : \Sub^M\;\Gamma^M\;(\Delta^M ,_{\Ctx}^M A^M)\;\sigma) \to \Tm^M\;\Gamma^M\;([ \pi_1^M\,\sigma^M ]^M_{\Ty}\,A^M)\;(\pi_2\,\sigma) \\
-  [\blank]^M\blank & : \implicit{\dots} && (\sigma^M : \Sub^M\;\Gamma^M\;\Delta^M\;\sigma) \to \Tm^M\;\Delta^M\;A^M\;t \to \Tm^M\;\Gamma^M\;([\sigma^M]_{\Ty}^M\,A^M)\;([\sigma]\;t) \\
-  \blank\uparrow^M\blank & : \implicit{\dots} \; && (\sigma^M : \Sub^M\;\Gamma^M\;\Delta^M\;\sigma) \to (A^M : \Ty^M\Delta^M\;A) \to \Sub^M\;(\Gamma^M, [\sigma^M]_{\Ty}^M\,A^M)\;(\Delta^M, A^M)\;(\sigma \uparrow A) \\
-  [\blank]_{\Tm}^M\blank & : \implicit{\dots} && (\sigma^M : \Sub^M\;\Gamma^M\;\Delta^M\;\sigma) \to \Tm^M\;\Delta^M\;A^M\;t \to \Tm^M\;\Gamma^M\;([\sigma^M]_{\Ty}^M\,A^M)([\sigma]_{\Tm}\,t) \\
-  \UU^M & : \implicit{\dots}\; && \Ty^M\;\Gamma^M\;\UU \\
-  \El^M & : \implicit{\dots}\; && \Tm^M\;\Gamma^M\;\UU^M\;u \to \Ty^M\;\Gamma^M\;(\El\,u) \\
-  \Pi^M & : \implicit{\dots}\; && (A^M : \Ty^M\;\Gamma^M\;A) \to \Ty^M\;(\Gamma^M ,_{\Ctx}^M A^M)\;B \to \Ty^M\;\Gamma^M\;(\Pi\,A\,B)  \\
-  \lambda^M & : \implicit{\dots}\; && \Tm^M\;(\Gamma^M ,_{\Ctx}^M A^M)\;B^M\;t \to \Tm^M\;\Gamma^M\;(\Pi^M\;A^M\;B^M)\;(\lambda\,t) \\
-  \mathsf{app}^M & : \implicit{\dots}\; && \Tm^M\;\Gamma^M\;(\Pi^M\,A^M\,B^M)\;t \to \Tm^M\;(\Gamma^M ,_{\Ctx}^M A^M)\;B^M\;(\mathsf{app}\,t) \\
+  \emptyctx_{\Ctx}^M     & : \Ctx^M\;\emptyctx \\
+  \blank,_{\Ctx}^M\blank & : (\Gamma^M : \Ctx^M\;\Gamma) \to \Ty^M\;\Gamma^M\;A \to \Ctx^M\;(\Gamma, A) \\
+  [\blank]_{\Ty}^M\blank & : \Sub^M\;\Gamma^M\;\Delta^M\;\sigma \to \Ty^M\;\Delta^M\;A \to \Ty^M\;\Gamma^M\;([\sigma]_{\Ty}\,A) \\
+  \emptysub_{\Sub}^M     & : \Sub^M\;\Gamma^M\;\emptyctx_{\Ctx}^M\;\cdot \\
+  \blank,_{\Sub}^M\blank & : (\sigma^M : \Sub^M\;\Gamma^M\;\Delta^M\;\sigma) \to \Tm^M\;\Gamma^M\;([\sigma^M]^M_{\Ty}\,A^M)\;t \to \Sub^M\;\Gamma^M\;(\Delta^M ,^M_{\Ctx} A^M)\;(\sigma, t) \\
+  \idS^M                 & : \Sub^M\;\Gamma^M\;\Gamma^M\;\idS \\
+  \blank;^M\blank        & : (\sigma^M : \Sub^M\;\Gamma\;\Delta^M\;\sigma) \to (\tau^M : \Sub^M\;\Delta^M\;\Theta^M\;\tau) \to \Sub^M\;\Gamma^M\;\Delta^M\;(\sigma ; \tau) \\
+  \pi_1^M                & : \Sub^M\;\Gamma^M\;(\Delta^M ,_{\Ctx}^M A^M)\;\sigma \to \Sub^M\;\Gamma^M\;\Delta^M\;(\pi_1\sigma) \\
+  \pi_2^M                & : (\sigma^M : \Sub^M\;\Gamma^M\;(\Delta^M ,_{\Ctx}^M A^M)\;\sigma) \to \Tm^M\;\Gamma^M\;([ \pi_1^M\,\sigma^M ]^M_{\Ty}\;A^M)\;(\pi_2\,\sigma) \\
+  [\blank]^M\blank       & : (\sigma^M : \Sub^M\;\Gamma^M\;\Delta^M\;\sigma) \to \Tm^M\;\Delta^M\;A^M\;t \to \Tm^M\;\Gamma^M\;([\sigma^M]_{\Ty}^M\,A^M)\;([\sigma]\;t) \\
+  \blank\uparrow^M\blank & : (\sigma^M : \Sub^M\;\Gamma^M\;\Delta^M\;\sigma) \to (A^M : \Ty^M\Delta^M\;A) \to \Sub^M\;(\Gamma^M, [\sigma^M]_{\Ty}^M\,A^M)\;(\Delta^M, A^M)\;(\sigma \uparrow A) \\
+  [\blank]_{\Tm}^M\blank & : (\sigma^M : \Sub^M\;\Gamma^M\;\Delta^M\;\sigma) \to \Tm^M\;\Delta^M\;A^M\;t \to \Tm^M\;\Gamma^M\;([\sigma^M]_{\Ty}^M\,A^M)([\sigma]_{\Tm}\,t) \\
+  \UU^M                  & : \Ty^M\;\Gamma^M\;\UU \\
+  \El^M                  & : \Tm^M\;\Gamma^M\;\UU^M\;u \to \Ty^M\;\Gamma^M\;(\El\,u) \\
+  \Pi^M                  & : (A^M : \Ty^M\;\Gamma^M\;A) \to \Ty^M\;(\Gamma^M ,_{\Ctx}^M A^M)\;B \to \Ty^M\;\Gamma^M\;(\Pi\,A\,B)  \\
+  \lambda^M              & : \Tm^M\;(\Gamma^M ,_{\Ctx}^M A^M)\;B^M\;t \to \Tm^M\;\Gamma^M\;(\Pi^M\;A^M\;B^M)\;(\lambda\,t) \\
+  \mathsf{app}^M         & : \Tm^M\;\Gamma^M\;(\Pi^M\,A^M\,B^M)\;t \to \Tm^M\;(\Gamma^M ,_{\Ctx}^M A^M)\;B^M\;(\mathsf{app}\,t) \\
+  \mathsf{Id}^M          & : (a^M : \Tm^M\;\Gamma^M\;\UU^M\;a) \to \Tm^M\;\Gamma^M\;(\El^M\,a^M)\;t \to \Tm^M\;\Gamma^M\;(\El^M\,a^M)\;u \to \Ty^M\;\Gamma^M\;(\mathsf{Id}\;a\;t\;u)  \\
+  \mathsf{refl}^M        & : (t^M : \Tm^M\;\Gamma^M\;(\El^M\,a^M)\;t) \to \Tm^M\;\Gamma^M\;(\mathsf{Id}^M\;a^M\;t^M\;t^M)\;(\mathsf{refl}\;t) 
 \end{alignat*}
+
 \begin{alignat*}{5}
-  [\idS]_{\Ty}^M & : \implicit{\dots}\; && [ \idS^M ]^M_{\Ty} \;A^M && =^{\Ty^M\,\Gamma^M}\;&& A^M \\
-  [;]_{\Ty}^M    & : \implicit{\dots}   && [ \sigma^M ;^M \tau^M ]^M_{\Ty} \;A^M && =^{\Ty^M\,\Gamma^M}\; && [\sigma^M]^M_{\Ty}\,([\tau^M]^M_{\Ty}\,A^M) \\
-  [\idS]_{\Tm}^M & : \implicit{\dots}   && [\idS^M]^M_{\Tm}\;t^M && =^{\lam{A^M}\Tm^M\;\Gamma^M\;A^M\;t}_{\alert{[\idS]^M_{\Ty}}} && \; t^M
+  (\blank)^{+M} & : (\sigma^M : \Sub^M\;\Gamma^M\;\Delta^M\;\sigma) \to \Sub^M\;(\Gamma^M ,_{\Ctx}^M ([ \sigma^M ]^M\;A^M]))\;(\Delta^M ,_{\Ctx}^M A^M)\;(\sigma^+) \\
+  (\sigma^M)^{+M} & \defeq (\pi_1^M \idS^M ;^M \sigma^M) ,_{\Sub}^M \alert{\transfib{\lam{A^M}\Tm^M\;\Gamma^M\;A^M\;\pi_2\idS}{([;]^M)^{-1}}{\color{black}\pi_2^M \idS^M}}
+\end{alignat*}
+
+\begin{alignat*}{5}
+  [\idS]_{\Ty}^M      & : [ \idS^M ]^M_{\Ty}                             && \;A^M =^{\Ty^M\,\Gamma^M}\; && A^M \\
+  [;]_{\Ty}^M         & : [ \sigma^M ;^M \tau^M ]^M_{\Ty}                && \;A^M =^{\Ty^M\,\Gamma^M}\; && [\sigma^M]^M_{\Ty}\,([\tau^M]^M_{\Ty}\,A^M) \\
+  [\pi_1,]^M_{\Ty}    & : [ \pi_1^M\,(\sigma^M ,^M_{\Sub} t^M) ]^M_{\Ty} && \;A^M =^{\Ty^M\,\Gamma^M} \; && [\sigma^M]^M_{\Ty}\,A^M \\
+  [\pi_1;]^M_{\Ty}    & : [ \pi_1^M\,(\sigma^M ;^M \tau^M) ]^M_{\Ty}     && \;A^M =^{\Ty^M\,\Gamma^M} \; && [\sigma^M]^M_{\Ty}\left([ \pi_1^M\,\tau^M]^M_{\Ty}\,A^M\right)
+\end{alignat*}
+
+\begin{alignat*}{5}
+  \idS\mathord{\uparrow}^M      & : \idS^M              && \uparrow^M A^M  =^{\lam{B^M} \Sub^M\,(\Gamma^M ,_{\Ctx}^M B^M)\,(\Gamma^M ,_{\Ctx}^M A^M)\;\idS}_{\alert{[\idS]^M_{\Ty}}} {} && \idS^M \\
+  ;\mathord{\uparrow}^M         & : (\sigma^M ; \tau^M) && \uparrow^M A^M  =^{\lam{B^M} \Sub^M\,(\Gamma^M ,_{\Ctx}^M B^M)\,(\Gamma^M ,_{\Ctx}^M A^M)\;\nameless}_{\alert{[;]^M_{\Ty}}} {} && (\sigma^M \uparrow^M [ \tau^M ]^M_{\Ty} \,A^M) ;^M (\tau^M \uparrow^M A^M)  \\
+  \pi_1,\mathord{\uparrow}^M    & : \pi_1^M(\sigma^M ,^M_{\Sub} t^M) && \uparrow^M A^M  =^{\lam{B^M} \Sub^M\,(\Gamma^M ,_{\Ctx}^M B^M)\,(\Gamma^M ,_{\Ctx}^M A^M)\;\nameless}_{\alert{[\pi_1,]^M_{\Ty}}}            {} && \sigma^M \uparrow^M  A^M \\
+  \pi_1;\mathord{\uparrow}^M    & : \pi_1^M(\sigma^M ;^M \tau^M)     && \uparrow^M A^M  =^{\lam{B^M} \Sub^M\,(\Gamma^M ,_{\Ctx}^M B^M)\,(\Gamma^M ,_{\Ctx}^M A^M)\;\nameless}_{\alert{[\pi_1;]^M_{\Ty}}} {} && (\sigma^M \uparrow^M  [\pi_1^M\tau^M]^M_{\Ty}\,A^M);^M (\pi_1^M\tau^M \uparrow^M A^M) \\
+  \emptysub^M_{\Sub} \mathord{\uparrow}^M & : \emptysub^M_{\Sub} && \uparrow^M A^M = (\emptysub^M_{\Sub})^{+M} \\
+  ,\mathord{\uparrow}^M & : (\sigma^M ,_{\Sub}^M t^M)  && \uparrow^M A^M = (\sigma^M ,_{\Sub}^M t^M)^{+M} \\
+  \pi_1\idS\mathord{\uparrow}^M & : (\pi_1^M\,\idS^M) && \uparrow^M A^M = (\pi_1^M\,\idS^M)^{+M} \\
+  \pi_1\pi_1\mathord{\uparrow}^M & : (\pi_1^M\,(\pi_1^M\,\sigma^M)) && \uparrow^M A^M = (\pi_1^M\,(\pi_1^M\,\sigma^M))^{+M}
+\end{alignat*}
+
+\begin{alignat*}{5}
+  [\idS]_{\Tm}^M      & : [\idS^M]^M_{\Tm}                               && \;t^M =^{\lam{A^M}\Tm^M\,\Gamma^M\,A^M\,t}_{\alert{[\idS]^M_{\Ty}}} && \; t^M \\
+  [;]^M_{\Tm}         & : [ \sigma^M ;^M \tau^M ]^M_{\Tm}                && \;t^M =^{\lam{A^M}\Tm^M\,\Gamma^M\,A^M\,t}_{\alert{[;]^M_{\Ty}}} && [ \sigma^M ]^M\; \left([ \tau^M ]^M_{\Tm}\,t^M\right) \\
+  [\pi_1,]^M_{\Tm}    & : [\pi_1^M (\sigma^M ,_{\Sub}^M t^M) ]^M_{\Tm}   && \;u^M =^{\lam{A^M}\Tm^M\,\Gamma^M\,A^M\,t}_{\alert{[\pi_1,]^M_{\Ty}}} && [\sigma^M]_{\Tm}^M\;u^M \\
+  [\pi_1;]^M_{\Tm}    & : [\pi_1^M (\sigma^M ;^M \tau^M) ]^M_{\Tm}       && \;t^M =^{\lam{A^M}\Tm^M\,\Gamma^M\,A^M\,t}_{\alert{[\pi_1;]^M_{\Ty}}} && [\sigma^M]_{\Tm}^M\;\left([\pi_1^M\,\tau^M]^M_{\Tm}\;t^M\right) \\
+  [\emptysub]^M_{\Tm} & : [\emptysub^M_{\Sub}]^M_{\Tm}                   && \;t^M = %^{\Tm^M\,\Gamma^M\;([\emptysub_{\Sub}^M]^M_{\Ty}\,A^M)\,([\emptysub]_{\Tm}\,t)}
+                      && [ \emptysub^M_{\Sub} ]^M \;t^M \\
+  [,]_{\Tm}^M         & : [ \sigma^M ,_{\Sub}^M t^M ]^M_{\Tm}            && \;u^M = %^{\Tm^M\,\Gamma^M\;([\sigma^M ,_{\Sub}^M t ]^M_{\Ty}\,A^M)\,([\sigma , t]_{\Tm}\,t)} &&
+                      [ \sigma^M ,_{\Sub}^M t^M ]^M \;u \\
+  [\pi_1\idS]^M_{\Tm} & : [ \pi_1^M\,\idS^M ]^M_{\Tm}                    && \;t^M = %^{\Tm^M\,(\Gamma^M ,^M_{\Ctx} A^M)\,([\pi_1^M\,\idS^M ]^M_{\Ty})\,A^M)\;([\pi_1\idS]_{\Tm}\,t)}{} &&
+                      [ \pi_1^M\,\idS^M ]^M\;t^M \\
+  [\pi_1\pi_1]^M_{\Tm}& : [ \pi_1^M\,(\pi_1^M\,\sigma^M) ]^M_{\Tm}       && \;t^M = %^{\Tm^M\,\Gamma^M\,([\pi_1^M\,(\pi_1^1\,\sigma^M)]^M_{\Ty}\,A)\;([\pi_1(\pi_1\,\sigma)]_{\Tm}\,t)} &&
+                      [ \pi_1^M\,(\pi_1^M\,\sigma^M) ]^M\;t^M
 \end{alignat*}
 \LT{To be finished}
 
